@@ -1,0 +1,22 @@
+{
+  "name": "projeto12_batepapo-uol",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "npx nodemon index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "nodemon": "^2.0.15"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^14.3.2",
+    "express": "^4.17.2",
+    "mongodb": "^4.3.1"
+  }
+}
