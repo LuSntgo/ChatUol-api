@@ -103,7 +103,8 @@ server.post("/messages", async (req, res) => {
   }
 });
 
-server.get("/messages", async (req, res) => {});
+// server.get("/messages", async (req, res) => {
+// });
 
 server.listen(5000, () => {
   console.log("Funciona");
