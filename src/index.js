@@ -10,6 +10,10 @@ const server = express();
 server.use(cors());
 server.use(json());
 
+const mongoClient = new MongoClient(process.env.MONGO_URI);
+await mongoClient.connect();
+const dbChatUol = mongoClient.db("chatuol");
+
 const userSchema = joi.object({
   name: joi.string().required(),
 });
@@ -22,10 +26,6 @@ const messageSchema = joi.object({
 //* Participants
 server.get("/participants", async (req, res) => {
   try {
-    const mongoClient = new MongoClient(process.env.MONGO_URI);
-    await mongoClient.connect();
-
-    const dbChatUol = mongoClient.db("chatuol");
     const participantsCollection = dbChatUol.collection("participants");
     const users = await participantsCollection.find({}).toArray();
 
@@ -45,10 +45,6 @@ server.post("/participants", async (req, res) => {
     return;
   }
   try {
-    const mongoClient = new MongoClient(process.env.MONGO_URI);
-    await mongoClient.connect();
-
-    const dbChatUol = mongoClient.db("chatuol");
     const participantsCollection = dbChatUol.collection("participants");
 
     if (await participantsCollection.findOne({ name: req.body.name })) {
@@ -75,9 +71,6 @@ server.post("/messages", async (req, res) => {
   const messageFrom = req.header.user;
   const validation = messageSchema.validate(req.body, { abortEarly: false });
   try {
-    const mongoClient = new MongoClient(process.env.MONGO_URI);
-    await mongoClient.connect();
-    const dbChatUol = mongoClient.db("chatuol");
     let authorization = await participants.findOne({ name: messageFrom });
 
     if (!authorization) {
@@ -103,8 +96,29 @@ server.post("/messages", async (req, res) => {
   }
 });
 
-// server.get("/messages", async (req, res) => {
-// });
+server.get("/messages", async (req, res) => {
+  const username = req.header.user;
+  const limit = parseInt(req.query.limit);
+  try {
+    const chatCollection = dbChatUol.collection("messages");
+    const filterChat = await chatCollection
+      .find({
+        $or: [
+          { type: "message" },
+          { $and: [{ type: "private_message" }, { to: username }] },
+          { $and: [{ type: "private_message" }, { from: username }] },
+        ],
+      })
+      .toArray();
+    if (!limit) {
+      res.send(filterChat);
+    } else {
+      res.send(filterChat.slice(-limit));
+    }
+  } catch (error) {
+    res.sendStatus(500);
+  }
+});
 
 server.listen(5000, () => {
   console.log("Funciona");
