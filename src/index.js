@@ -19,13 +19,14 @@ const messageSchema = joi.object({
   type: joi.valid("message", "private_message").required(),
 });
 
+//* Participants
 server.get("/participants", async (req, res) => {
   try {
     const mongoClient = new MongoClient(process.env.MONGO_URI);
     await mongoClient.connect();
 
-    const dbChatUol = mongoClient.db("participants");
-    const participantsCollection = dbChatUol.collection("users");
+    const dbChatUol = mongoClient.db("chatuol");
+    const participantsCollection = dbChatUol.collection("participants");
     const users = await participantsCollection.find({}).toArray();
 
     res.send(users);
@@ -47,8 +48,8 @@ server.post("/participants", async (req, res) => {
     const mongoClient = new MongoClient(process.env.MONGO_URI);
     await mongoClient.connect();
 
-    const dbChatUol = mongoClient.db("participants");
-    const participantsCollection = dbChatUol.collection("users");
+    const dbChatUol = mongoClient.db("chatuol");
+    const participantsCollection = dbChatUol.collection("participants");
 
     if (await participantsCollection.findOne({ name: req.body.name })) {
       res.status(409).send("Ops, esse participante já existe");
@@ -67,6 +68,42 @@ server.post("/participants", async (req, res) => {
     res.sendStatus(500);
   }
 });
+
+//* Messages
+
+server.post("/messages", async (req, res) => {
+  const messageFrom = req.header.user;
+  const validation = messageSchema.validate(req.body, { abortEarly: false });
+  try {
+    const mongoClient = new MongoClient(process.env.MONGO_URI);
+    await mongoClient.connect();
+    const dbChatUol = mongoClient.db("chatuol");
+    let authorization = await participants.findOne({ name: messageFrom });
+
+    if (!authorization) {
+      res.sendStatus(422);
+      mongoClient.close();
+      return;
+    }
+    if (validation.error) {
+      res.status(422).send("Erro na validação dos dados");
+      mongoClient.close();
+      return;
+    }
+    const message = {
+      ...req.body,
+      from: messageFrom,
+      time: dayjs().format("HH:mm:ss"),
+    };
+    await dbChatUol.collection("messages").insertOne(message);
+    res.sendStatus(201);
+    mongoClient.close();
+  } catch (error) {
+    res.sendStatus(500);
+  }
+});
+
+server.get("/messages", async (req, res) => {});
 
 server.listen(5000, () => {
   console.log("Funciona");
