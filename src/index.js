@@ -120,8 +120,30 @@ server.get("/messages", async (req, res) => {
   }
 });
 
+server.post("/status", async (req, res) => {
+  const username = req.header.user;
+
+  try {
+    const participantsCollection = dbChatUol.collection("participants");
+    const participantsList = await participantsCollection.find({}).toArray();
+    if (!participantsList.find((p) => p.name === username)) {
+      res.sendStatus(404);
+    } else {
+      await participantsCollection.updateOne(
+        { name: username },
+        { $set: { lastStatus: Date.now() } }
+      );
+      res.sendStatus(200);
+    }
+  } catch (error) {
+    res.sendStatus(500);
+  }
+});
+
 server.listen(5000, () => {
   console.log("Funciona");
 });
 
-server.delete("");
+// server.delete("/messages/:id", async (req, res) => {
+
+//   });
