@@ -20,6 +20,8 @@ The Bate-Papo UOL is a chat room simulator, that allow people to send text messa
 
 :ballot_box_with_check: `Status` - Automatically removes the inactive participant
 
+:ballot_box_with_check: `Remove` - Remove inactive participant after 15 seconds of inactivity - **in progress**
+
 :ballot_box_with_check: `Delete` - Delete a message from the list - **in progress**
 
 ## :woman_technologist: Technologies
