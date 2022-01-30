@@ -120,6 +120,8 @@ server.get("/messages", async (req, res) => {
   }
 });
 
+//* Status
+
 server.post("/status", async (req, res) => {
   const username = req.header.user;
 
@@ -140,10 +142,25 @@ server.post("/status", async (req, res) => {
   }
 });
 
-server.listen(5000, () => {
-  console.log("Funciona");
+//* Delete
+server.delete("/messages/:id", async (req, res) => {
+  const { id } = req.params;
+  const username = req.header.user;
+  const chatCollection = dbChatUol.collection("messages");
+  const message = await chatCollection.findOne({ _id: new ObjectId(id) });
+
+  if (!message) {
+    res.sendStatus(404);
+    return;
+  }
+  if (username !== message.from || message.type === "status") {
+    res.sendStatus(401);
+    return;
+  }
+  await chatCollection.deleteOne({ _id: new ObjectId(id) });
+  res.sendStatus(200);
 });
 
-// server.delete("/messages/:id", async (req, res) => {
-
-//   });
+server.listen(5000, () => {
+  console.log("Rodando em http://localhost:5000");
+});
