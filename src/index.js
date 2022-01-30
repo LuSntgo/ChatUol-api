@@ -3,87 +3,73 @@ import cors from "cors";
 import { MongoClient, ObjectId } from "mongodb";
 import joi from "joi";
 import dotenv from "dotenv";
-dotenv.config();
+import dayjs from "dayjs";
 
+dotenv.config();
 const server = express();
 server.use(cors());
 server.use(json());
 
-const users = [];
-
-server.get("/participants", (req, res) => {
-  const mongoClient = new MongoClient(
-    "mongodb://localhost:27017/?directConnection=true&serverSelectionTimeoutMS=2000&appName=chatUol"
-  );
-  const promiseConnect = mongoClient.connect();
-
-  promiseConnect.then((connectedMongoClient) => {
-    console.log("SUCESSOOOO");
-
-    const dbParticipants = connectedMongoClient.db("participants");
-    const participantsCollection = dbParticipants.collection("users");
-
-    const promiseParticipants = participantsCollection.find({}).toArray();
-
-    promiseParticipants.then((users) => {
-      res.send(users);
-      mongoClient.close();
-    });
-
-    promiseParticipants.catch((error) => {
-      console.log("Error nos dados", error);
-      res.sendStatus(500);
-      mongoClient.close();
-    });
-  });
-
-  promiseConnect.catch((error) => {
-    console.log("Error de conexão", error);
-    res.send(500);
-    mongoClient.close();
-  });
+const userSchema = joi.object({
+  name: joi.string().required(),
+});
+const messageSchema = joi.object({
+  to: joi.string().required(),
+  text: joi.string().required(),
+  type: joi.valid("message", "private_message").required(),
 });
 
-server.post("/participants", (req, res) => {
-  if (!req.body.name || !req.body.lastStatus) {
-    res.status(422).send("Todos os campos são obrigatórios!");
+server.get("/participants", async (req, res) => {
+  try {
+    const mongoClient = new MongoClient(process.env.MONGO_URI);
+    await mongoClient.connect();
+
+    const dbChatUol = mongoClient.db("participants");
+    const participantsCollection = dbChatUol.collection("users");
+    const users = await participantsCollection.find({}).toArray();
+
+    res.send(users);
+    mongoClient.close();
+  } catch (error) {
+    console.log(error);
+    res.sendStatus(500);
+  }
+});
+
+server.post("/participants", async (req, res) => {
+  const validation = userSchema.validate(req.body);
+
+  if (validation.error) {
+    res.status(422).send(validation.error);
     return;
   }
+  try {
+    const mongoClient = new MongoClient(process.env.MONGO_URI);
+    await mongoClient.connect();
 
-  const mongoClient = new MongoClient(
-    "mongodb://localhost:27017/?directConnection=true&serverSelectionTimeoutMS=2000&appName=chatUol"
-  );
-  const promiseConnect = mongoClient.connect();
+    const dbChatUol = mongoClient.db("participants");
+    const participantsCollection = dbChatUol.collection("users");
 
-  promiseConnect.then((connectedMongoClient) => {
-    console.log("SUCESSOOOO");
-
-    const dbParticipants = connectedMongoClient.db("participants");
-    const participantsCollection = dbParticipants.collection("users");
-
-    const promiseInsert = participantsCollection.insertOne(req.body);
-
-    promiseInsert.then(() => {
-      res.sendStatus(201);
+    if (await participantsCollection.findOne({ name: req.body.name })) {
+      res.status(409).send("Ops, esse participante já existe");
       mongoClient.close();
-    });
+      return;
+    }
+    const userData = {
+      name: req.body.name,
+      lastStatus: Date.now(),
+    };
 
-    promiseInsert.catch((error) => {
-      console.log("Error no push de dados", error);
-      res.sendStatus(500);
-      mongoClient.close();
-    });
-  });
-
-  promiseConnect.catch((error) => {
-    console.log("Error de conexão", error);
-    res.send(500);
+    await participantsCollection.insertOne(userData);
+    res.sendStatus(201);
     mongoClient.close();
-  });
-
-  res.sendStatus(201);
+  } catch (error) {
+    res.sendStatus(500);
+  }
 });
 
 server.listen(5000, () => {
   console.log("Funciona");
 });
+
+server.delete("");
