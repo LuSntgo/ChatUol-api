@@ -165,28 +165,6 @@ server.delete("/messages/:id", async (req, res) => {
 });
 
 //* Remove
-setInterval(async () => {
-  try {
-    const participants = dbChatUol.collection("participants");
-    const messages = dbChatUol.collection("messages");
-    const online = await participants.find({}).toArray();
-
-    for (const participant of online) {
-      if (Date.now() - participant.lastStatus > 10000) {
-        await participants.deleteOne({ name: participant.name });
-        await messages.insertOne({
-          from: participant.name,
-          to: "Todos",
-          text: "sai da sala...",
-          type: "status",
-          time: dayjs().format("HH:mm:ss"),
-        });
-      }
-    }
-  } catch (error) {
-    console.log(error);
-  }
-}, 15000);
 
 server.listen(5000, () => {
   console.log("Rodando em http://localhost:5000");
