@@ -11,9 +11,10 @@ server.use(cors());
 server.use(json());
 
 const mongoClient = new MongoClient(process.env.MONGO_URI);
-await mongoClient.connect();
-const dbChatUol = mongoClient.db("chatuol");
-
+let dbChatUol;
+mongoClient.connect(() => {
+  dbChatUol = mongoClient.db("chatuol");
+});
 const userSchema = joi.object({
   name: joi.string().required(),
 });
@@ -30,9 +31,7 @@ server.get("/participants", async (req, res) => {
     const users = await participantsCollection.find({}).toArray();
 
     res.send(users);
-    mongoClient.close();
   } catch (error) {
-    console.log(error);
     res.sendStatus(500);
   }
 });
@@ -49,7 +48,7 @@ server.post("/participants", async (req, res) => {
 
     if (await participantsCollection.findOne({ name: req.body.name })) {
       res.status(409).send("Ops, esse participante já existe");
-      mongoClient.close();
+
       return;
     }
     const userData = {
@@ -59,7 +58,6 @@ server.post("/participants", async (req, res) => {
 
     await participantsCollection.insertOne(userData);
     res.sendStatus(201);
-    mongoClient.close();
   } catch (error) {
     res.sendStatus(500);
   }
@@ -68,19 +66,20 @@ server.post("/participants", async (req, res) => {
 //* Messages
 
 server.post("/messages", async (req, res) => {
-  const messageFrom = req.header.user;
+  const messageFrom = req.headers.user;
   const validation = messageSchema.validate(req.body, { abortEarly: false });
+  const participants = await dbChatUol.collection("participants");
   try {
     let authorization = await participants.findOne({ name: messageFrom });
 
     if (!authorization) {
       res.sendStatus(422);
-      mongoClient.close();
+
       return;
     }
     if (validation.error) {
       res.status(422).send("Erro na validação dos dados");
-      mongoClient.close();
+
       return;
     }
     const message = {
@@ -90,14 +89,13 @@ server.post("/messages", async (req, res) => {
     };
     await dbChatUol.collection("messages").insertOne(message);
     res.sendStatus(201);
-    mongoClient.close();
   } catch (error) {
     res.sendStatus(500);
   }
 });
 
 server.get("/messages", async (req, res) => {
-  const username = req.header.user;
+  const username = req.headers.user;
   const limit = parseInt(req.query.limit);
   try {
     const chatCollection = dbChatUol.collection("messages");
@@ -123,7 +121,7 @@ server.get("/messages", async (req, res) => {
 //* Status
 
 server.post("/status", async (req, res) => {
-  const username = req.header.user;
+  const username = req.headers.user;
 
   try {
     const participantsCollection = dbChatUol.collection("participants");
@@ -145,21 +143,50 @@ server.post("/status", async (req, res) => {
 //* Delete
 server.delete("/messages/:id", async (req, res) => {
   const { id } = req.params;
-  const username = req.header.user;
-  const chatCollection = dbChatUol.collection("messages");
-  const message = await chatCollection.findOne({ _id: new ObjectId(id) });
+  const username = req.headers.user;
+  try {
+    const chatCollection = dbChatUol.collection("messages");
+    const message = await chatCollection.findOne({ _id: new ObjectId(id) });
 
-  if (!message) {
-    res.sendStatus(404);
-    return;
+    if (!message) {
+      res.sendStatus(404);
+      return;
+    }
+    if (username !== message.from || message.type === "status") {
+      console.log(error);
+      res.sendStatus(401);
+      return;
+    }
+    await chatCollection.deleteOne({ _id: new ObjectId(id) });
+    res.sendStatus(200);
+  } catch (error) {
+    res.sendStatus(500);
   }
-  if (username !== message.from || message.type === "status") {
-    res.sendStatus(401);
-    return;
-  }
-  await chatCollection.deleteOne({ _id: new ObjectId(id) });
-  res.sendStatus(200);
 });
+
+//* Remove
+setInterval(async () => {
+  try {
+    const participants = dbChatUol.collection("participants");
+    const messages = dbChatUol.collection("messages");
+    const online = await participants.find({}).toArray();
+
+    for (const participant of online) {
+      if (Date.now() - participant.lastStatus > 10000) {
+        await participants.deleteOne({ name: participant.name });
+        await messages.insertOne({
+          from: participant.name,
+          to: "Todos",
+          text: "sai da sala...",
+          type: "status",
+          time: dayjs().format("HH:mm:ss"),
+        });
+      }
+    }
+  } catch (error) {
+    console.log(error);
+  }
+}, 15000);
 
 server.listen(5000, () => {
   console.log("Rodando em http://localhost:5000");
